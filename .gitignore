@@ -1,0 +1,15 @@
+node_modules/
+.next/
+.next-e2e/
+dist/
+.env
+.env.*
+!.env.example
+.local/
+coverage/
+test-results/
+playwright-report/
+*.log
+*.tsbuildinfo
+agent/config/*.xml
+agent/config/*.json

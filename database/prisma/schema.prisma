@@ -1,0 +1,198 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+enum JobKind {
+  SCAN
+  UPDATE
+}
+enum JobStatus {
+  QUEUED
+  RUNNING
+  VERIFYING
+  COMPLETED
+  FAILED
+  CANCELLED
+  INTERRUPTED
+  RESTART_REQUIRED
+  VERIFICATION_FAILED
+}
+model User {
+  id           String @id @default(uuid()) @db.Uuid
+  email        String @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  retentionDays Int @default(90)
+  sessions     Session[]
+  devices      Device[]
+  pairings     Pairing[]
+  approvals    UpdateApproval[]
+  jobs         Job[]
+  events       AuditEvent[]
+}
+model Session {
+  id        String @id @default(uuid()) @db.Uuid
+  tokenHash String @unique
+  csrfHash  String
+  userId    String @db.Uuid
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  @@index([expiresAt])
+}
+model Pairing {
+  id        String @id @default(uuid()) @db.Uuid
+  tokenHash String @unique
+  userId    String @db.Uuid
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+}
+model Device {
+  id           String @id @default(uuid()) @db.Uuid
+  ownerId      String @db.Uuid
+  owner        User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  name         String
+  os           String
+  agentVersion String
+  wingetVersion String?
+  health       String @default("UNKNOWN")
+  lastSeen     DateTime @default(now())
+  revokedAt    DateTime?
+  createdAt    DateTime @default(now())
+  credentials  AgentCredential[]
+  applications Application[]
+  jobs         Job[]
+  events       AuditEvent[]
+  @@index([ownerId, lastSeen])
+}
+model AgentCredential {
+  id        String @id @default(uuid()) @db.Uuid
+  tokenHash String @unique
+  deviceId  String @db.Uuid
+  device    Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  nonces    AgentNonce[]
+}
+model AgentNonce {
+  id           String @id @default(uuid()) @db.Uuid
+  credentialId String @db.Uuid
+  credential   AgentCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  nonce        String @db.Uuid
+  createdAt    DateTime @default(now())
+  @@unique([credentialId, nonce])
+  @@index([createdAt])
+}
+model Application {
+  id               String @id @default(uuid()) @db.Uuid
+  deviceId         String @db.Uuid
+  device           Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  identity         String
+  name             String
+  publisher        String?
+  installedVersion String
+  availableVersion String?
+  packageId        String?
+  source           String?
+  status           String
+  lastObserved     DateTime
+  present          Boolean @default(true)
+  jobs             Job[]
+  snapshots        ScanSnapshot[]
+  approvals        UpdateApproval[]
+  @@unique([deviceId, identity])
+  @@index([deviceId, present, status])
+  @@index([name])
+}
+model ReleaseMetadata {
+  id           String @id @default(uuid()) @db.Uuid
+  packageId    String
+  version      String
+  source       String
+  channel      String?
+  publisher    String?
+  officialUrl  String?
+  changelogUrl String?
+  releaseNotes String?
+  releaseDate  DateTime?
+  fetchedAt    DateTime @default(now())
+  @@unique([packageId, version, source])
+}
+model UpdateApproval {
+  id          String @id @default(uuid()) @db.Uuid
+  tokenHash   String @unique
+  userId      String @db.Uuid
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appId       String @db.Uuid
+  application Application @relation(fields: [appId], references: [id], onDelete: Cascade)
+  fromVersion String
+  targetVersion String
+  observedAt  DateTime
+  expiresAt   DateTime
+  consumedAt  DateTime?
+}
+model Job {
+  id             String @id @default(uuid()) @db.Uuid
+  kind           JobKind
+  status         JobStatus @default(QUEUED)
+  deviceId       String @db.Uuid
+  device         Device @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  appId          String? @db.Uuid
+  application    Application? @relation(fields: [appId], references: [id], onDelete: SetNull)
+  initiatorId    String @db.Uuid
+  initiator      User @relation(fields: [initiatorId], references: [id], onDelete: Restrict)
+  packageId      String?
+  source         String?
+  previousVersion String?
+  targetVersion  String?
+  resultingVersion String?
+  createdAt      DateTime @default(now())
+  startedAt      DateTime?
+  endedAt        DateTime?
+  leaseUntil     DateTime?
+  leaseHash      String?
+  exitCode       Int?
+  error          String?
+  verified       Boolean @default(false)
+  detectedCount  Int?
+  snapshots      ScanSnapshot[]
+  @@index([deviceId, status, createdAt])
+  @@index([initiatorId, createdAt])
+}
+model ScanSnapshot {
+  id            String @id @default(uuid()) @db.Uuid
+  jobId         String @db.Uuid
+  job           Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  appId         String @db.Uuid
+  application   Application @relation(fields: [appId], references: [id], onDelete: Cascade)
+  version       String
+  metadata      Json
+  @@index([jobId])
+}
+model AuditEvent {
+  id        String @id @default(uuid()) @db.Uuid
+  actorId   String? @db.Uuid
+  actor     User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  deviceId  String? @db.Uuid
+  device    Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  type      String
+  target    String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  @@index([actorId, createdAt])
+}
+model SecurityFinding {
+  id            String @id @default(uuid()) @db.Uuid
+  packageId     String
+  advisoryId    String
+  severity      String?
+  affectedRange String
+  source        String
+  advisoryUrl   String
+  verifiedAt    DateTime
+  @@unique([packageId, advisoryId, source])
+}

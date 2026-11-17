@@ -1,0 +1,38 @@
+name: Verify UpdatePilot
+on: [push, pull_request]
+jobs:
+  api-and-web:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: updatepilot
+          POSTGRES_PASSWORD: ci-fixture-only
+          POSTGRES_DB: updatepilot_test
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U updatepilot" --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://updatepilot:ci-fixture-only@127.0.0.1:5432/updatepilot_test
+      TEST_DATABASE_URL: postgresql://updatepilot:ci-fixture-only@127.0.0.1:5432/updatepilot_test
+      WEB_ORIGIN: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run db:generate
+      - run: npm run db:migrate
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npm audit --audit-level=high
+  agent:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - shell: powershell
+        run: ./agent/tests/Test-Agent.ps1

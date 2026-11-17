@@ -1,0 +1,55 @@
+{
+  "name": "updatepilot",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n api,web \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev:backend": "npm run dev -w backend",
+    "dev:frontend": "npm run dev -w frontend",
+    "build": "npm run build -w backend && npm run build -w frontend",
+    "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend && npm run typecheck:tests",
+    "lint": "eslint backend/src frontend scripts tests backend/tests && prettier --check .",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:e2e": "node scripts/test-db.mjs e2e",
+    "test:agent": "powershell -NoProfile -File agent/tests/Test-Agent.ps1",
+    "db:generate": "prisma generate --schema database/prisma/schema.prisma",
+    "db:migrate": "prisma migrate deploy --schema database/prisma/schema.prisma",
+    "db:local": "node scripts/local-db.mjs start",
+    "db:stop": "node scripts/local-db.mjs stop",
+    "user:create": "tsx backend/src/create-user.ts",
+    "agent:setup": "powershell -NoProfile -File agent/scripts/Setup.ps1",
+    "agent": "powershell -NoProfile -File agent/src/Start-Agent.ps1",
+    "test:integration": "node scripts/test-db.mjs",
+    "test:browser": "node scripts/install-browser.mjs",
+    "agent:check": "powershell -NoProfile -File agent/scripts/Setup.ps1 -CheckOnly",
+    "typecheck:tests": "tsc -p tsconfig.tests.json",
+    "agent:scan:check": "powershell -NoProfile -File agent/scripts/Test-Inventory.ps1 -CompareCli"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@eslint/js": "^9.39.0",
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^24.0.0",
+    "@types/supertest": "^6.0.3",
+    "concurrently": "^9.2.0",
+    "dotenv": "^17.2.0",
+    "eslint": "^9.39.0",
+    "prettier": "^3.6.0",
+    "prisma": "6.19.0",
+    "supertest": "^7.1.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.46.0",
+    "vitest": "^5.0.5"
+  },
+  "overrides": {
+    "effect": "^3.20.0",
+    "deepmerge-ts": "^8.0.0"
+  },
+  "type": "module"
+}

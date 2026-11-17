@@ -1,0 +1,13 @@
+node_modules
+.next
+.next-e2e
+dist
+.local
+package-lock.json
+database/prisma/migrations
+*.ps1
+*.psm1
+*.psd1
+test-results
+playwright-report
+frontend/next-env.d.ts
