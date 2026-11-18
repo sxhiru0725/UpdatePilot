@@ -177,6 +177,8 @@ test('dashboard pages, controls, exports, history, settings and negative device 
   await expect(page.getByRole('heading', { name: 'Release metadata unavailable' })).toBeVisible();
   await page.getByRole('button', { name: 'Review update' }).click();
   await expect(page.getByRole('dialog')).toContainText('Fixture.Controls');
+  // Review also refreshes inventory. Dismissal is intentionally blocked until it finishes.
+  await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeEnabled();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(await db.job.count({ where: { deviceId, kind: 'UPDATE' } })).toBe(0);

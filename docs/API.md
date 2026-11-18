@@ -1,6 +1,6 @@
 # API guide
 
-Base URL: `http://127.0.0.1:4310/api/v1`, accessed by the browser through `http://localhost:3000/api/v1`. Authenticated OpenAPI JSON: `/api/v1/openapi.json`. Swagger UI: `/api/v1/docs/` (sign in first). The executable contract is generated in `backend/src/openapi.ts`; request schemas are Zod validated at runtime.
+Local base URL: `http://127.0.0.1:4310/api/v1`, accessed by the browser through `http://localhost:3000/api/v1`. Hosted browsers use the Vercel frontend's same-origin `/api/v1` proxy; the local Windows agent connects outbound directly to the separately hosted HTTPS backend's `/api/v1/agent` endpoints. See [deployment settings](DEPLOYMENT.md). Authenticated OpenAPI JSON: `/api/v1/openapi.json`. Swagger UI: `/api/v1/docs/` (sign in first). The executable contract is generated in `backend/src/openapi.ts`; request schemas are Zod validated at runtime.
 
 Success responses use `{ "data": ... }`, optionally `{ "pagination": { "page": 1, "limit": 25, "total": 0 } }`. Errors use `{ "error": "safe explanation" }`, with field-level validation details for HTTP 400. Codes include 200, 201 (pairing), 202 (queued operation), 400, 401, 403, 404, 409, 429 and 503. `/api/health` checks the actual database.
 

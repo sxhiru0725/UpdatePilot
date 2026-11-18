@@ -1,0 +1,26 @@
+# Express stays a long-running service: its maintenance/lease timers are required.
+# Database is a separately created Neon Free project. No paid resources are declared.
+services:
+  - type: web
+    name: updatepilot-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci --include=dev && npm run db:generate && npm run build -w backend
+    startCommand: npm run start:production
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: '24.15.0'
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: TRUST_PROXY_HOPS
+        value: '1'
+      - key: WEB_ORIGIN
+        value: https://frontend-sxhiru.vercel.app
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_DATABASE_URL
+        sync: false

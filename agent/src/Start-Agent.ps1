@@ -2,27 +2,34 @@ param([string]$BackendUrl = 'http://127.0.0.1:4310', [switch]$Pair, [switch]$Onc
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $version = '0.1.0'
-$uri = [Uri]$BackendUrl
-if ($uri.Scheme -ne 'http' -or $uri.Host -cne '127.0.0.1' -or $uri.Port -notin @(4310,4311) -or $uri.AbsolutePath -ne '/' -or $uri.UserInfo -or $uri.Query -or $uri.Fragment) { throw 'This agent only connects to loopback port 4310 or the isolated test backend on 4311.' }
-if ($uri.Port -eq 4311 -and -not $CredentialPath) { throw 'The isolated test backend requires an explicit separate credential path.' }
-$BackendUrl = $BackendUrl.TrimEnd('/')
+Import-Module (Join-Path $PSScriptRoot 'Agent.Transport.psm1') -Force
+$BackendUrl = Resolve-AgentBackend $BackendUrl $CredentialPath
+if ($BackendUrl.StartsWith('https://')) { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 }
 Import-Module (Join-Path $PSScriptRoot 'Agent.Core.psm1') -Force
 $store = Join-Path $env:LOCALAPPDATA 'UpdatePilot'
 if (-not $CredentialPath) { $CredentialPath = Join-Path $store 'credential.xml' }
+if ($BackendUrl.StartsWith('https://') -and -not $PSBoundParameters.ContainsKey('CredentialPath')) {
+    $hasher = [Security.Cryptography.SHA256]::Create()
+    try { $targetHash = [BitConverter]::ToString($hasher.ComputeHash([Text.Encoding]::UTF8.GetBytes($BackendUrl))).Replace('-', '').ToLowerInvariant() } finally { $hasher.Dispose() }
+    $CredentialPath = Join-Path (Join-Path $store "cloud-$targetHash") 'credential.xml'
+}
 New-Item -ItemType Directory -Path (Split-Path $CredentialPath -Parent) -Force | Out-Null
 # DPAPI is user + machine bound. Restrict the directory to the current SID and SYSTEM.
 $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $null = & icacls (Split-Path $CredentialPath -Parent) /inheritance:r /grant:r "*${sid}:(OI)(CI)F" '*S-1-5-18:(OI)(CI)F'
 if ($LASTEXITCODE -ne 0) { throw 'Unable to protect agent credential directory.' }
 $identity = $null
-if ((Test-Path $CredentialPath) -and -not $Pair) { $identity = Import-Clixml -LiteralPath $CredentialPath }
+if ((Test-Path $CredentialPath) -and -not $Pair) {
+    $identity = Import-Clixml -LiteralPath $CredentialPath
+    Assert-AgentBackendIdentity $identity $BackendUrl
+}
 else {
     if ($PairingCodePath) { $code = (Get-Content -LiteralPath $PairingCodePath -Raw).Trim() }
     else { $codeSecure = Read-Host 'Enter the one-use code from Settings & Agent' -AsSecureString; $code = [Net.NetworkCredential]::new('', $codeSecure).Password }
     if ($code -cnotmatch '^[a-f0-9]{64}$') { throw 'Invalid pairing code format.' }
     $payload = @{ code = $code; name = $env:COMPUTERNAME; os = [Environment]::OSVersion.VersionString; agentVersion = $version } | ConvertTo-Json -Compress
-    $paired = Invoke-RestMethod -Uri "$BackendUrl/api/v1/agent/pair" -Method Post -ContentType 'application/json' -Body $payload -TimeoutSec 15
-    $identity = [PSCustomObject]@{ DeviceId = $paired.data.deviceId; Credential = [PSCredential]::new('updatepilot', (ConvertTo-SecureString $paired.data.token -AsPlainText -Force)) }
+    $paired = Invoke-RestMethod -Uri "$BackendUrl/api/v1/agent/pair" -Method Post -ContentType 'application/json' -Body $payload -TimeoutSec 15 -MaximumRedirection 0
+    $identity = [PSCustomObject]@{ BackendUrl = $BackendUrl; DeviceId = $paired.data.deviceId; Credential = [PSCredential]::new('updatepilot', (ConvertTo-SecureString $paired.data.token -AsPlainText -Force)) }
     $identity | Export-Clixml -LiteralPath $CredentialPath
     $code = $null; $payload = $null; $paired = $null
     Write-Output 'Device paired. Credential is protected with Windows DPAPI.'
@@ -33,7 +40,7 @@ function Send-AgentRequest {
     $headers = @{ Authorization = "Bearer $token"; 'X-Agent-Timestamp' = [string][DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds(); 'X-Request-ID' = [guid]::NewGuid().ToString() }
     # Every request uses a fresh nonce. Result submission is never retried with a new operation.
     $json = $Body | ConvertTo-Json -Depth 12 -Compress
-    Invoke-RestMethod -Uri "$BackendUrl/api/v1/agent$Path" -Method Post -Headers $headers -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($json)) -TimeoutSec 15
+    Invoke-RestMethod -Uri "$BackendUrl/api/v1/agent$Path" -Method Post -Headers $headers -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($json)) -TimeoutSec 15 -MaximumRedirection 0
 }
 $health = 'READY'; $wingetVersion = $null
 try { $wingetVersion = [string](& winget --version); if ($LASTEXITCODE -ne 0) { $health = 'WINGET_UNAVAILABLE' } } catch { $health = 'WINGET_UNAVAILABLE' }

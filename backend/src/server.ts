@@ -4,8 +4,8 @@ import { db } from './db.js';
 import { maintenance } from './services/jobs.js';
 import { retention } from './services/retention.js';
 import { logger } from './logger.js';
-const server = app.listen(config.PORT, '127.0.0.1', () =>
-  logger.info({ port: config.PORT }, 'UpdatePilot API listening on loopback'),
+const server = app.listen(config.PORT, config.HOST, () =>
+  logger.info({ host: config.HOST, port: config.PORT }, 'UpdatePilot API listening'),
 );
 let busy = false;
 const timer = setInterval(async () => {

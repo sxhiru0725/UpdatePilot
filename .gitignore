@@ -2,8 +2,6 @@ node_modules/
 .next/
 .next-e2e/
 dist/
-.env
-.env.*
 !.env.example
 .local/
 coverage/
@@ -13,3 +11,4 @@ playwright-report/
 *.tsbuildinfo
 agent/config/*.xml
 agent/config/*.json
+config.bat

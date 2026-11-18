@@ -29,10 +29,17 @@ import { logger } from './logger.js';
 export const app = express();
 app.disable('x-powered-by');
 app.set('query parser', 'simple');
+app.set('trust proxy', config.TRUST_PROXY_HOPS);
+// Session, pairing and agent responses must never enter a shared cache.
+app.use((_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 app.use(
   helmet(),
   cors({ origin: config.WEB_ORIGIN, credentials: true }),
-  express.json({ limit: '8mb' }),
+  // Browser and agent send plain JSON. Reject compressed bodies before inflation.
+  express.json({ limit: '8mb', inflate: false }),
   cookieParser(),
 );
 if (config.NODE_ENV !== 'test')
@@ -71,7 +78,7 @@ const authLimit = rateLimit({
 const cookieOptions = {
   httpOnly: true,
   sameSite: 'strict' as const,
-  secure: config.NODE_ENV === 'production',
+  secure: new URL(config.WEB_ORIGIN).protocol === 'https:',
   path: '/',
   maxAge: 8 * 3600000,
 };
@@ -765,6 +772,17 @@ user.use('/docs', swaggerUi.serve, swaggerUi.setup(openapi));
 app.use('/api/v1', user);
 app.use((_req, _res, next) => next(new ApiError(404, 'Route not found')));
 app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  if (
+    typeof error === 'object' &&
+    error &&
+    'type' in error &&
+    error.type === 'encoding.unsupported'
+  ) {
+    res
+      .status(415)
+      .json({ error: 'Compressed request bodies are not supported. Send plain JSON.' });
+    return;
+  }
   if (typeof error === 'object' && error && 'type' in error && error.type === 'entity.too.large') {
     res.status(413).json({ error: 'Request exceeds the maximum size.' });
     return;

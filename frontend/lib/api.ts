@@ -103,6 +103,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<A
     response = await fetch(`/api/v1${path}`, {
       ...options,
       credentials: 'same-origin',
+      cache: 'no-store',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf, ...options.headers },
       signal: options.signal ?? AbortSignal.timeout(15000),
     });
@@ -112,11 +113,29 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<A
       'Cannot reach UpdatePilot. Check that the backend is running and try again.',
     );
   }
-  const body = await response
-    .json()
-    .catch(() => ({ error: 'The server returned an unreadable response.' }));
-  if (!response.ok) throw new ApiError(response.status, body.error ?? 'The request failed.');
-  return body;
+  const invalidResponse = () =>
+    new ApiError(
+      response.ok ? 502 : response.status,
+      response.redirected
+        ? 'The API redirected to another page. Check backend deployment protection and API_URL.'
+        : `UpdatePilot API returned an invalid response (HTTP ${response.status}). Check API_URL and backend health.`,
+    );
+  if (!response.headers.get('content-type')?.toLowerCase().includes('application/json'))
+    throw invalidResponse();
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    throw invalidResponse();
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw invalidResponse();
+  if (!response.ok)
+    throw new ApiError(
+      response.status,
+      'error' in body && typeof body.error === 'string' ? body.error : 'The request failed.',
+    );
+  if (!('data' in body)) throw invalidResponse();
+  return body as ApiResponse<T>;
 }
 export const post = <T>(path: string, body: unknown = {}) =>
   api<T>(path, { method: 'POST', body: JSON.stringify(body) });

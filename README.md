@@ -74,7 +74,7 @@ npm run start -w backend
 npm run start -w frontend
 ```
 
-This is a local-first MVP, not a hardened multi-host deployment. Remote hosting, service installation and TLS termination have not been implemented or approved.
+For cloud hosting, follow [the deployment guide](docs/DEPLOYMENT.md): Vercel hosts Next.js, a separate long-running Express service uses managed PostgreSQL, and the Windows agent connects outbound over HTTPS. The included Render blueprint selects the Free plan. Provider accounts, secrets, cloud deployment and live acceptance remain operator steps; this does not claim a hardened or already deployed production service. Local commands above remain supported.
 
 ## Pair and scan a real Windows device
 

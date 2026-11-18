@@ -155,6 +155,17 @@ describe.skipIf(!testUrl)('real PostgreSQL API and agent contract', () => {
       query.mockRestore();
     }
   });
+  it('rejects compressed request bodies before decompression', async () => {
+    const response = await request(app)
+      .post('/api/v1/auth/login')
+      .set('Origin', origin)
+      .set('Content-Type', 'application/json')
+      .set('Content-Encoding', 'gzip')
+      .send('untrusted compressed bytes');
+    expect(response.status).toBe(415);
+    expect(response.headers['content-type']).toContain('application/json');
+    expect(response.body.error).toContain('Send plain JSON');
+  });
   it('rejects unauthorized device access without disclosing existence', async () => {
     await login('other@example.invalid');
     expect((await owned(`/devices/${deviceId}/scans`)).status).toBe(404);

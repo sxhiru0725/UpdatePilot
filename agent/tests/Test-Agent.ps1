@@ -3,6 +3,16 @@ Import-Module (Join-Path $PSScriptRoot '..\src\Agent.Core.psm1') -Force
 $script:passed = 0
 function Assert-True { param([bool]$Condition, [string]$Description) if (-not $Condition) { throw "FAIL: $Description" }; $script:passed++; Write-Output "PASS: $Description" }
 function Assert-Rejected { param([scriptblock]$Action, [string]$Description) $rejected = $false; try { & $Action } catch { $rejected = $true }; Assert-True $rejected $Description }
+Import-Module (Join-Path $PSScriptRoot '..\src\Agent.Transport.psm1') -Force
+Assert-True ((Resolve-AgentBackend 'http://127.0.0.1:4310' '') -ceq 'http://127.0.0.1:4310') 'Preserves local backend default'
+Assert-True ((Resolve-AgentBackend 'https://updatepilot.example/' '') -ceq 'https://updatepilot.example') 'Accepts explicit outbound HTTPS backend'
+foreach ($url in @('http://updatepilot.example', 'https://user:password@updatepilot.example', 'https://updatepilot.example/api', 'https://updatepilot.example/?token=secret', 'https://updatepilot.example/#fragment', 'https://127.0.0.1', 'https://localhost', 'https://updatepilot.example:8443', 'http://127.0.0.1:4311')) {
+    Assert-Rejected { Resolve-AgentBackend $url '' } 'Rejects insecure or ambiguous backend target'
+}
+Assert-True ((Resolve-AgentBackend 'http://127.0.0.1:4311' 'isolated.xml') -ceq 'http://127.0.0.1:4311') 'Preserves isolated test backend'
+Assert-AgentBackendIdentity ([PSCustomObject]@{}) 'http://127.0.0.1:4310'
+Assert-Rejected { Assert-AgentBackendIdentity ([PSCustomObject]@{}) 'https://updatepilot.example' } 'Never forwards legacy local credentials to the cloud'
+Assert-Rejected { Assert-AgentBackendIdentity ([PSCustomObject]@{ BackendUrl = 'https://first.example' }) 'https://second.example' } 'Binds cloud credentials to the paired backend'
 $valid = [PSCustomObject]@{ operation = 'UPDATE'; source = 'winget'; packageId = 'Vendor.App'; previousVersion = '1.0'; targetVersion = '2.0' }
 Assert-UpdateOperation $valid
 Assert-True $true 'Accepts validated exact update envelope'

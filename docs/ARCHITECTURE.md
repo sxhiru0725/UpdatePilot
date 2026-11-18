@@ -1,8 +1,8 @@
 # Architecture
 
-The frontend is Next.js App Router and React/TypeScript, styled with Tailwind v4 and CSS design tokens. Radix Dialog provides focus-trapped, keyboard-accessible confirmations; React Hook Form/Zod validates sign-in; Recharts visualizes actual job activity. The navigation covers overview, inventory/details, updates, security coverage, history and settings. Browser requests use a same-origin `/api` rewrite to Express.
+The frontend is Next.js App Router and React/TypeScript, styled with Tailwind v4 and CSS design tokens. Radix Dialog provides focus-trapped, keyboard-accessible confirmations; React Hook Form/Zod validates sign-in; Recharts visualizes actual job activity. The navigation covers overview, inventory/details, updates, security coverage, history and settings. Browser requests use a same-origin `/api` Node.js Route Handler to Express. On Vercel, server-side `API_URL` must identify a separately deployed HTTPS backend. Local operation defaults to loopback. See [deployment settings](DEPLOYMENT.md).
 
-Express runs separately on loopback. Zod validates API contracts. PostgreSQL/Prisma is the only runtime state store: no fake in-memory inventory or seed records are used in the real workspace. Jobs use PostgreSQL transactions, row locks and a partial unique index instead of requiring Redis. The PowerShell foreground agent polls, claims a job once and runs a separate worker so progress heartbeats continue while WinGet is busy.
+Express runs separately on loopback by default; hosted operation explicitly selects `HOST=0.0.0.0`, production mode and an exact HTTPS browser origin behind the provider's TLS ingress. Zod validates API contracts. PostgreSQL/Prisma is the only runtime state store: no fake in-memory inventory or seed records are used in the real workspace. Jobs use PostgreSQL transactions, row locks and a partial unique index instead of requiring Redis. The PowerShell foreground agent polls, claims a job once and runs a separate worker so progress heartbeats continue while WinGet is busy. Cloud transport remains outbound HTTPS polling from Windows; the backend never connects to a private computer.
 
 ```mermaid
 flowchart LR
@@ -31,4 +31,4 @@ An expired lease is never requeued. The maintenance process marks it interrupted
 
 ## Boundaries
 
-This MVP manages WinGet-correlated applications and one interactive Windows user context per agent. No fleet discovery, automatic scans, bulk execution, vulnerability matching or hosted deployment is provided. A verified source manifest is useful release metadata, not proof of publisher security. The local operating-system user, project source, WinGet installation and PostgreSQL operator are trusted; malware running as the same user is outside this MVP threat boundary.
+This MVP manages WinGet-correlated applications and one interactive Windows user context per agent. No fleet discovery, automatic scans, bulk execution or vulnerability matching is provided. Hosted deployment configuration is supplied, with account setup and live acceptance still required. A verified source manifest is useful release metadata, not proof of publisher security. The local operating-system user, project source, WinGet installation and PostgreSQL operator are trusted; malware running as the same user is outside this MVP threat boundary.
